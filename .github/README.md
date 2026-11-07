@@ -172,6 +172,13 @@ All the other settings are CleanYourTV's, listed in [`themes/README.md`](../them
   the Telugu features.
 - The Wi-Fi icon's offline look has not yet been seen on a real TV while offline.
 
+## Use at your own risk
+
+This changes the software on your TV. Apps are only switched off, never uninstalled, and CleanYourTV's restore
+script puts them back, but every TV is different and this comes with no warranty. Changing your TV's software may
+affect its warranty or support. Read CleanYourTV's [safety notes](../README.md#questions-people-ask) first, and
+keep the restore command it gives you.
+
 ## Credits
 
 - [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin23 and its contributors, MIT licence. Its own
