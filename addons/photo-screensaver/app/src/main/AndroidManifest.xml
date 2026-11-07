@@ -8,6 +8,14 @@
          the TV's rough location, sent rounded to about 1 km to Open-Meteo. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Granted with pm grant: shows the pictures the TV keeps in DCIM, read each time the screensaver starts. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Granted with appops: opens pictures on a USB drive, which this TV's media index cannot read. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:ignore="ScopedStorage" />
+    <!-- Granted with appops: lets PicturesActivity set how long the TV waits before its screensaver. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
@@ -48,6 +56,16 @@
         </activity>
 
         <!-- Opened by the TV's screensaver settings (xml/dream.xml), which needs it exported. -->
+        <!-- The launcher's top-bar button opens this: choose the screensaver's pictures with the remote. -->
+        <activity
+            android:name=".PicturesActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="com.gathin.photodream.action.PICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".SettingsActivity"
             android:exported="true"

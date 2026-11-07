@@ -110,6 +110,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     static final String ACTION_VIEW_INPUTS = "com.android.tv.action.VIEW_INPUTS";
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
+    /** The rows under the dock this Home was built with, for fitTiles. */
+    private int fitRows;
     private boolean rtlAppGrid;
     private static final long MINUTE_MS = 60_000L;
     private static final long STATS_MS = 10_000L;
@@ -333,6 +335,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean reordering;
     /** Key of the tile being carried in reorder mode, or null. */
     private String movingKey;
+    /** swap_tiles: where the carried tile was picked up. */
+    private int moveOrigin;
     /** Tile order when reorder mode started, to save only when something moved. */
     private List<String> orderAtStart;
     /**
@@ -436,6 +440,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Runnable minuteTick = new Runnable() {
         @Override
         public void run() {
+            if (festivalDayChanged()) {
+                recreate();
+                return;
+            }
             updateGreeting();
             updatePanel();
             // The pill follows the network callbacks and each return to Home; only the festive light follows the
@@ -473,6 +481,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         settingsKeycodes = cfg.settingsKeycodes;
         settingsKeyPanel = cfg.settingsKeyPanel;
         COLUMNS = cfg.columns;
+        fitRows = cfg.rowsBelowDock;
         animations = cfg.animations;
         advancedEffects = cfg.animations && cfg.advancedEffects;
         reducedMotion = cfg.reducedMotion;
@@ -590,6 +599,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lunar = cfg.lunarDate;
         lunarOffset = Lunar.offsetFor(cfg.lunarUtcOffset, Locale.getDefault());
         if (lunar) lunarDate.setVisibility(View.VISIBLE);
+        if (Config.teluguCalendar) {
+            // The wide spacing suits Latin capitals; it pulls Telugu letters apart.
+            lunarDate.setVisibility(View.VISIBLE);
+            lunarDate.setLetterSpacing(0f);
+            ((TextView) findViewById(R.id.date)).setLetterSpacing(0f);
+        }
+        if (festival.active(LocalDate.now())) greeting.setLetterSpacing(0f);
         greetingName = cfg.greetingName;
         if (cfg.dateBelowClock) moveDateBelowClock();
         if (cfg.dateBelowClock && cfg.iconOnlyButtons && !cfg.topMenu
@@ -683,7 +699,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public void onChildViewDetachedFromWindow(@NonNull View v) {
             }
         });
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
+        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames || Config.dockNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
                 singleRow, cfg.dockBandAll));
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
@@ -831,6 +847,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnSettings.setOnClickListener(v -> {
             if (launcherSettingsButton) startActivityForResult(
                     new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
+            else if (Config.settingsPillPanel) open(new Intent(this, QuickSettingsActivity.class));
             else open(systemIntent(Settings.ACTION_SETTINGS));
         });
         btnReorder = findViewById(R.id.btnReorder);
@@ -1086,7 +1103,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onResume();
         resumed = true;
         // A festival that started or ended while Home was in the background: rebuild with or without it.
-        if (festive != festival.active(LocalDate.now())) {
+        if (festive != festival.active(LocalDate.now()) || festivalDayChanged()) {
             recreate();
             return;
         }
@@ -1138,7 +1155,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (festive && lamp != null) {
             lamp.start();
             LocalDate today = LocalDate.now();
-            if (!reducedMotion && !today.equals(lastPetalShower)) {
+            if (Config.festivalEffect < 0 && !reducedMotion && !today.equals(lastPetalShower)) {
                 lastPetalShower = today;
                 handler.postDelayed(this::playPetalShower, 450);
             }
@@ -1265,6 +1282,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lastFocusedKey = returnKey;
         lastFocused = returnSlot;
         packageSequence = currentPackageSequence(packageSequence);
+        fitTiles();
+    }
+
+    /**
+     * fit_all_tiles: remember how many tiles there are, and rebuild Home when they need another layout. The count
+     * is saved first, so the rebuild (Config.load reads it) lands on that layout and does not ask again.
+     */
+    private void fitTiles() {
+        if (!Config.fitAllTiles || singleRow) return;
+        int count = adapter.tileCount();
+        getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).edit().putInt(GridFit.TILE_COUNT_KEY, count).apply();
+        int[] fit = GridFit.fit(count, Config.fitBaseColumns, Config.fitBaseRows);
+        if (fit[0] != COLUMNS || fit[1] != fitRows) grid.post(this::recreate);
     }
 
     /**
@@ -1329,6 +1359,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onStop() {
         super.onStop();
+        stopFestivalBurst();
         started = false;
         unregisterReceiver(timeReceiver);
         clockRefresh.stop();
@@ -1625,6 +1656,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void pickUp(int pos) {
         if (pos >= adapter.movableCount()) return;   // the "Default home" tile stays put
         movingKey = adapter.keyAt(pos);
+        moveOrigin = pos;
         dimOthers();
     }
 
@@ -1705,7 +1737,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         else if (from + COLUMNS < n) to = from + COLUMNS;
         else to = from / COLUMNS < (n - 1) / COLUMNS ? n - 1 : from;
         if (to < 0 || to >= n || to == from) return;
-        keepScroll(() -> adapter.move(from, to));
+        if (Config.swapTiles) {
+            String wasThere = adapter.keyAt(from);
+            keepScroll(() -> adapter.swapStep(moveOrigin, from, to));
+            // The tile it now trades with takes its old place, so that is what decides its side of the dock edge.
+            String traded = adapter.keyAt(moveOrigin);
+            if (traded != null && !traded.equals(wasThere)) {
+                if (moveOrigin < COLUMNS) dockInSession.add(traded);
+                else dockInSession.remove(traded);
+            }
+        } else {
+            keepScroll(() -> adapter.move(from, to));
+        }
         // The owner carries this tile: where it lands decides whether it is in the dock, not dock_apps (#499).
         if (to < COLUMNS) dockInSession.add(movingKey);
         else dockInSession.remove(movingKey);
@@ -1796,8 +1839,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onTileFocused(int position, View card) {
+        String previousKey = lastFocusedKey;
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
+        if (Config.festivalEffect >= 0 && festive && !reducedMotion && previousKey != null
+                && !previousKey.equals(lastFocusedKey)) {
+            queueFestivalBurst();
+        }
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
         // would be sized to 2*pad. Run again once the tile is laid out.
         if (card.getWidth() == 0) {
@@ -2593,9 +2641,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             TextView button = (TextView) getLayoutInflater().inflate(R.layout.top_app_button, bar, false);
             // pillKeys finds the bar's ends by id: without one of its own, every app button would be an end.
             button.setId(View.generateViewId());
+            // These two take the same plain glyph and tint as the Wi-Fi and Settings buttons.
+            int glyph = "com.gathin.photodream".equals(pkg) ? R.drawable.ic_picture
+                    : "io.github.maxhayim.startupbranding".equals(pkg) ? R.drawable.ic_title : 0;
+            if (glyph != 0) logo = getDrawable(glyph);
             logo.setBounds(0, 0, size, size);
             button.setCompoundDrawablesRelative(logo, null, null, null);
-            button.setCompoundDrawableTintList(null);
+            if (glyph == 0) button.setCompoundDrawableTintList(null);
             button.setContentDescription(label);
             Intent target = launch;
             button.setOnClickListener(v -> open(new Intent(target)));
@@ -2762,6 +2814,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (shamsi) shamsiDate.setText(Shamsi.today(getResources()));
         if (lunar) lunarDate.setText(Lunar.today(getResources(), lunarOffset));
+        if (Config.teluguCalendar) showTeluguDate();
     }
 
     // ---- race-weekend panel (a theme's race_calendar) -----------------------------------------------
@@ -3004,6 +3057,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             lamp.setSteady(steady);
             lamp.setFlame(flame);
         } else {
+            // wifi_status_warnings: a crossed-out icon too while offline.
+            if (wifiNoInternetTint != null && !online) icon = R.drawable.ic_wifi_off;
             if (icon != wifiIcon) {
                 wifiIcon = icon;
                 btnWifi.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0);
@@ -3099,6 +3154,38 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (previous != null) previous.onFocusChange(v, focused);
             if (focused) action.run();
         });
+    }
+
+    private PetalShowerView festivalBurst;
+    private final Runnable playFestivalBurst = this::playFestivalBurst;
+
+    /** festival_auto: once each time the highlight settles on an app. The short wait skips the ones it only passes. */
+    private void queueFestivalBurst() {
+        handler.removeCallbacks(playFestivalBurst);
+        handler.postDelayed(playFestivalBurst, 300);
+    }
+
+    private void playFestivalBurst() {
+        if (!resumed || isFinishing() || isDestroyed() || reordering) return;
+        if (festivalBurst == null) {
+            festivalBurst = new PetalShowerView(this);
+            festivalBurst.setEffect(Config.festivalEffect);
+            // Right above the background and under the tiles and the clock.
+            root.addView(festivalBurst, 0, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        android.util.Log.i("TvHome", "festival burst on " + lastFocusedKey);
+        PetalShowerView burst = festivalBurst;
+        burst.play(12, 1700, () -> {
+            if (festivalBurst == burst) stopFestivalBurst();
+        });
+    }
+
+    private void stopFestivalBurst() {
+        handler.removeCallbacks(playFestivalBurst);
+        PetalShowerView view = festivalBurst;
+        festivalBurst = null;
+        if (view != null) root.removeView(view);
     }
 
     private void playPetalShower() {
@@ -3216,6 +3303,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         btnInputs.setVisibility(any ? View.VISIBLE : View.GONE);
+    }
+
+    private LocalDate teluguDay;
+    /** festival_auto: the day this Home asked FestivalCalendar about. */
+    private final LocalDate festivalDay = LocalDate.now();
+
+    /** A new day may start or end a festival, also while Home just stays on screen. */
+    private boolean festivalDayChanged() {
+        return Config.festivalAuto && !LocalDate.now().equals(festivalDay);
+    }
+
+    /** telugu_calendar: worked out once a day, as the clock refreshes every minute. */
+    private void showTeluguDate() {
+        LocalDate today = LocalDate.now();
+        if (today.equals(teluguDay)) return;
+        teluguDay = today;
+        // TextClock takes a pattern: the quotes make the whole Telugu line literal text.
+        android.widget.TextClock date = findViewById(R.id.date);
+        String pattern = "'" + Panchangam.dateLine(today) + "'";
+        date.setFormat12Hour(pattern);
+        date.setFormat24Hour(pattern);
+        lunarDate.setText(Panchangam.panchangLine(Panchangam.at(today, Config.calendarLatitude,
+                Config.calendarLongitude, java.time.ZoneId.systemDefault())));
     }
 
     /** boot_to_live_tv, or the Open on start app: the first time Home comes up after the TV starts, open that app

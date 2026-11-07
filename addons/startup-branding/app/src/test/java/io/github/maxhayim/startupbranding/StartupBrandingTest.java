@@ -73,7 +73,7 @@ public class StartupBrandingTest {
         Look l = Look.load(s);
         assertEquals(Look.Mode.CUSTOM, l.mode);
         assertEquals("", l.image);
-        assertEquals(0, l.color);
+        assertEquals(2, l.color);
         assertEquals(5, l.seconds);
         assertEquals("two lines", l.text);
     }

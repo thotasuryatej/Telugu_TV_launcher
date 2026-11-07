@@ -54,6 +54,10 @@ final class Media {
 
     /** The folder's pictures and clips by name, at most 100; empty and oversized files are left out. */
     static List<File> list(File folder) {
+        return list(folder, MAX_FILES);
+    }
+
+    private static List<File> list(File folder, int max) {
         List<File> result = new ArrayList<>();
         File[] entries = folder == null ? null : folder.listFiles();
         if (entries == null) return result;
@@ -63,9 +67,101 @@ final class Media {
             String name = entry.getName();
             boolean ok = video(name) ? entry.length() <= VIDEO_MAX : image(name) && entry.length() <= IMAGE_MAX;
             if (ok) result.add(entry);
-            if (result.size() == MAX_FILES) break;
+            if (result.size() == max) break;
         }
         return result;
+    }
+
+    /** Pictures the TV keeps in DCIM, its subfolders included; the screensaver reads them each time it starts. */
+    static final int MAX_GALLERY = 2000;
+
+    /** The app's own pictures, then the TV's DCIM pictures: what the screensaver shows. */
+    static List<File> all(File appDir) {
+        List<File> result = appDir == null ? new ArrayList<>() : list(new File(appDir, PICTURES), MAX_GALLERY);
+        java.util.Set<String> off = excluded(appDir);
+        for (File f : gallery(android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DCIM), namesOf(result))) {
+            if (!off.contains(f.getPath())) result.add(f);
+        }
+        android.util.Log.i("PhotoDream", "pictures found: " + result.size());
+        return result;
+    }
+
+    private static final String EXCLUDED = "excluded.txt";
+
+    /** The DCIM pictures taken off the screensaver in PicturesActivity, by path. */
+    static java.util.Set<String> excluded(File appDir) {
+        java.util.Set<String> paths = new java.util.HashSet<>();
+        File file = appDir == null ? null : new File(appDir, EXCLUDED);
+        if (file == null || !file.isFile()) return paths;
+        try {
+            for (String line : java.nio.file.Files.readAllLines(file.toPath())) if (!line.isEmpty()) paths.add(line);
+        } catch (java.io.IOException ignored) {
+            // Unreadable: every DCIM picture shows, which is the default.
+        }
+        return paths;
+    }
+
+    static void saveExcluded(File appDir, java.util.Set<String> paths) {
+        if (appDir == null) return;
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(new File(appDir, EXCLUDED))) {
+            out.write(String.join(System.lineSeparator(), paths).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException ignored) {
+            // The picker shows the choice for now; it is only lost if the TV's storage cannot be written.
+        }
+    }
+
+    static boolean picture(String name) {
+        return PICTURE.matcher(name).matches();
+    }
+
+    static boolean under(File file, File folder) {
+        return folder != null && file.getPath().startsWith(folder.getPath() + File.separator);
+    }
+
+    /** Where a picture from outside DCIM is copied: a name list() accepts, made unique by the source's path. */
+    static File copyTarget(File appDir, File picture) {
+        if (appDir == null) return null;
+        String name = picture.getName();
+        int dot = name.lastIndexOf('.');
+        String base = name.substring(0, dot).replaceAll("[^A-Za-z0-9_-]", "_");
+        String id = Integer.toHexString(picture.getPath().hashCode());
+        return new File(new File(appDir, PICTURES), "usb-" + id + "-" + base + name.substring(dot).toLowerCase());
+    }
+
+    static void copy(File from, File to) throws java.io.IOException {
+        File folder = to.getParentFile();
+        if (folder != null) folder.mkdirs();
+        java.nio.file.Files.copy(from.toPath(), to.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private static java.util.Set<String> namesOf(List<File> files) {
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (File f : files) names.add(f.getName());
+        return names;
+    }
+
+    /** Pictures under {@code root} by name. {@code taken} keeps names unique, as next() finds the place by name. */
+    static List<File> gallery(File root, java.util.Set<String> taken) {
+        List<File> result = new ArrayList<>();
+        collect(root, taken, result, 0);
+        result.sort(Comparator.comparing(File::getName));
+        return result;
+    }
+
+    private static final Pattern PICTURE = Pattern.compile(".+[.](jpg|jpeg|png|webp)", Pattern.CASE_INSENSITIVE);
+
+    private static void collect(File folder, java.util.Set<String> taken, List<File> into, int depth) {
+        File[] entries = folder == null || depth > 4 ? null : folder.listFiles();
+        if (entries == null) return;
+        for (File entry : entries) {
+            if (into.size() >= MAX_GALLERY) return;
+            String name = entry.getName();
+            if (name.startsWith(".")) continue;
+            if (entry.isDirectory()) collect(entry, taken, into, depth + 1);
+            else if (PICTURE.matcher(name).matches() && entry.length() > 0 && entry.length() <= IMAGE_MAX
+                    && taken.add(name)) into.add(entry);
+        }
     }
 
     /** The file after {@code previous} by name, wrapping around; the first one when previous is gone. */

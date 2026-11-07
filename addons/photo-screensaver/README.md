@@ -75,6 +75,9 @@ is decoded at screen size. On a TCL 43P69K (1.5 GB) a 1080p clip played with the
 
 ## Permissions
 
+- **`READ_MEDIA_IMAGES`** (granted with `pm grant`): shows the pictures in the TV's DCIM folder, read each time the screensaver starts.
+- **`MANAGE_EXTERNAL_STORAGE`** (allowed with `appops`): opens pictures on a USB drive for the picker, on TVs whose media index cannot read them. Reads only; nothing on the drive is changed.
+- **`WRITE_SETTINGS`** (allowed with `appops`, then `appops write-settings`): lets the picker set how long the TV waits before its screensaver.
 - **Network: `INTERNET` and `ACCESS_COARSE_LOCATION`**, used only by the weather option, which is off by
   default. With it on, the TV's rough location, rounded to two decimals (about 1 km), goes to
   `api.open-meteo.com` every 30 minutes while the screensaver runs, and the temperature and weather code

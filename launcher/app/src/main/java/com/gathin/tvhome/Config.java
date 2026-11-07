@@ -40,6 +40,23 @@ final class Config {
     static final String FILE_NAME = "config.json";
     static final String WALLPAPER_NAME = "wallpaper.jpg";
     static final String SETTINGS_NAME = "launcher_settings";
+    /** fit_all_tiles, and the layout it grows from, as of the last load. */
+    static boolean fitAllTiles;
+    /** festival_auto: today's FestivalCalendar effect, played once as focus lands on an app; -1 on an ordinary day. */
+    static int festivalEffect = -1;
+    /** festival_auto is on, so Home rebuilds on a new day to ask FestivalCalendar again. */
+    static boolean festivalAuto;
+    /** telugu_calendar: the Telugu day, date, month, tithi and nakshatra beside the clock. */
+    static boolean teluguCalendar;
+    /** settings_pill_panel: the Settings button on Home opens the quick settings panel. */
+    static boolean settingsPillPanel;
+    /** calendar_latitude and calendar_longitude: where sunrise is worked out for the Telugu calendar. */
+    static double calendarLatitude = Panchangam.DEFAULT_LATITUDE, calendarLongitude = Panchangam.DEFAULT_LONGITUDE;
+    /** swap_tiles: moving a tile trades places with the one it lands on, instead of shifting the tiles between. */
+    static boolean swapTiles;
+    /** dock_names: the focused dock tile shows its name under it, as the grid's tiles do. */
+    static boolean dockNames;
+    static int fitBaseColumns, fitBaseRows;
     static final String ROWS_BELOW_DOCK_KEY = "rows_below_dock";
     static final String WALLPAPER_CHOICE_KEY = "wallpaper_choice";
     static final String DOCK_OPACITY_KEY = "dock_opacity";
@@ -669,6 +686,29 @@ final class Config {
         if (chosenColumns >= 4 && chosenColumns <= 7) columns = chosenColumns;
         int chosenRows = choices.getInt(ROWS_BELOW_DOCK_KEY, rowsBelow);
         if (chosenRows >= 0 && chosenRows <= 3) rowsBelow = chosenRows;
+        // fit_all_tiles grows the layout chosen above to hold the tiles Home last counted (MainActivity.fitTiles).
+        dockNames = res.getBoolean(R.bool.dock_names);
+        if (json != null) dockNames = bool(json, "dock_names", dockNames);
+        swapTiles = json != null && bool(json, "swap_tiles", false);
+        teluguCalendar = json != null && bool(json, "telugu_calendar", false);
+        settingsPillPanel = json != null && bool(json, "settings_pill_panel", false);
+        calendarLatitude = json == null ? Panchangam.DEFAULT_LATITUDE
+                : json.optDouble("calendar_latitude", Panchangam.DEFAULT_LATITUDE);
+        calendarLongitude = json == null ? Panchangam.DEFAULT_LONGITUDE
+                : json.optDouble("calendar_longitude", Panchangam.DEFAULT_LONGITUDE);
+        if (Math.abs(calendarLatitude) > 66 || Math.abs(calendarLongitude) > 180) {
+            calendarLatitude = Panchangam.DEFAULT_LATITUDE;
+            calendarLongitude = Panchangam.DEFAULT_LONGITUDE;
+        }
+        fitAllTiles = res.getBoolean(R.bool.fit_all_tiles);
+        if (json != null) fitAllTiles = bool(json, "fit_all_tiles", fitAllTiles);
+        fitBaseColumns = Math.max(1, columns);
+        fitBaseRows = Math.max(0, rowsBelow);
+        if (fitAllTiles) {
+            int[] fit = GridFit.fit(choices.getInt(GridFit.TILE_COUNT_KEY, 0), fitBaseColumns, fitBaseRows);
+            columns = fit[0];
+            rowsBelow = fit[1];
+        }
         animations = choices.getBoolean("animations", animations);
         advancedEffects = choices.getBoolean("advanced_effects", advancedEffects);
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
@@ -705,6 +745,34 @@ final class Config {
         // but launchers before it ignore the key, so a theme can carry it without older ones showing the diya skin.
         Festival festival = json == null ? Festival.NONE : Festival.parse(festivalName(json),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
+        festivalEffect = -1;
+        festivalAuto = json != null && bool(json, "festival_auto", false);
+        if (festivalAuto) {
+            // The skin ends today, so Home rebuilds tomorrow and asks again.
+            java.time.LocalDate today = java.time.LocalDate.now();
+            // festival_preview_date shows what another day will look like; the skin still ends today.
+            java.time.LocalDate day = today;
+            String preview = string(json, "festival_preview_date", "");
+            if (!preview.isEmpty()) {
+                try {
+                    day = java.time.LocalDate.parse(preview);
+                } catch (java.time.format.DateTimeParseException ignored) {
+                    // Unreadable: today's festival, as without the key.
+                }
+            }
+            // A family date comes first when it falls on a festival.
+            FestivalCalendar.Entry entry = FestivalCalendar.family(day,
+                    stringList(json, "family_days", new ArrayList<>()));
+            List<String> corrections = stringList(json, "festival_corrections", new ArrayList<>());
+            if (entry == null) entry = FestivalCalendar.corrected(day, corrections);
+            if (entry == null && !FestivalCalendar.noFestival(day, corrections)) {
+                entry = FestivalCalendar.on(day, calendarLatitude, calendarLongitude,
+                        java.time.ZoneId.systemDefault());
+            }
+            festival = entry == null ? Festival.NONE
+                    : Festival.parse(entry.skin, today.toString(), entry.greeting, entry.accent);
+            if (entry != null) festivalEffect = entry.effect;
+        }
 
         return new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
                 packageMap(appBanners), panelService, panelAction, panelExtra, coocaaSources, inputAction, inputSources, inputUriScheme, Math.max(1, columns),

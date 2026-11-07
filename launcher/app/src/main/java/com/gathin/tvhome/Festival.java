@@ -57,8 +57,15 @@ final class Festival {
                 return NONE;
             }
         }
-        String g = greeting == null ? "" : Cards.cleanLabel(greeting, "");
+        String g = greeting == null ? "" : cleanGreeting(greeting);
         return new Festival(n, end, g, parseColor(accent));
+    }
+
+    /** Like Cards.cleanLabel, without its limit for tiles: a family greeting in Telugu runs longer. */
+    private static String cleanGreeting(String s) {
+        String clean = s.replaceAll("[\\p{Cc}\\p{Zl}\\p{Zp}\\u202A-\\u202E\\u2066-\\u2069]", " ")
+                .replaceAll("\\s+", " ").trim();
+        return clean.length() > 90 ? clean.substring(0, 90) : clean;
     }
 
     /** Whether the skin shows today. */

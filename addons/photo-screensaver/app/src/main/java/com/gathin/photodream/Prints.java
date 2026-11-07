@@ -147,7 +147,7 @@ final class Prints {
     private Print nextPrint(Set<File> used) {
         for (int tries = 0; tries < 4; tries++) {
             if (queue.isEmpty()) {
-                for (File f : Media.list(folder)) if (Media.image(f.getName())) queue.add(f);
+                for (File f : Media.all(folder == null ? null : folder.getParentFile())) queue.add(f);
                 queue.removeAll(used);
                 Collections.shuffle(queue, random);
             }

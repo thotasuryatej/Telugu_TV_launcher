@@ -2,7 +2,6 @@ package com.gathin.photodream;
 
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
-import android.animation.PropertyValuesHolder;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -17,7 +16,6 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -25,7 +23,6 @@ import android.widget.TextView;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -39,11 +36,9 @@ final class Slides {
 
     private static final long FADE_MS = 1500L;
     /** How far a picture zooms in over its time on screen; it drifts at most half the extra width. */
-    private static final float ZOOM = 1.12f;
 
     private final Context context;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Random random = new Random();
     /** The month and year of the picture on screen, or null when the option is off. */
     private final TextView caption;
     private final View empty;
@@ -98,13 +93,16 @@ final class Slides {
         preferences = context.getSharedPreferences("photo_dream", Context.MODE_PRIVATE);
         File dir = context.getExternalFilesDir(null);
         interval = Media.seconds(Photos.read(dir == null ? null : new File(dir, Media.SECONDS))) * 1000L;
-        images = dir == null ? new ArrayList<>() : Media.list(new File(dir, Media.PICTURES));
+        images = Media.all(dir);
         if (caption != null) caption.setAlpha(0f);
     }
 
+    private static final float ZOOM_FROM = 0.92f;
+
     private ImageView image(FrameLayout stage) {
         ImageView view = new ImageView(context);
-        view.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        // The whole picture, never cropped: black bars fill what it does not cover.
+        view.setScaleType(ImageView.ScaleType.FIT_CENTER);
         view.setAlpha(0f);
         stage.addView(view, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -193,23 +191,16 @@ final class Slides {
         incoming.setImageBitmap(bitmap);
         incoming.setTag(bitmap);
         incoming.bringToFront();
-        // Start zoomed in or out at random and drift toward a random spot, over the whole slide.
-        boolean zoomIn = random.nextBoolean();
-        float from = zoomIn ? 1f : ZOOM;
-        float to = zoomIn ? ZOOM : 1f;
-        float dx = (random.nextFloat() - 0.5f) * width * (ZOOM - 1f);
-        float dy = (random.nextFloat() - 0.5f) * height * (ZOOM - 1f);
         incoming.setAlpha(0f);
         ObjectAnimator fade = ObjectAnimator.ofFloat(incoming, View.ALPHA, 0f, 1f).setDuration(FADE_MS);
-        ObjectAnimator drift = ObjectAnimator.ofPropertyValuesHolder(incoming,
-                PropertyValuesHolder.ofFloat(View.SCALE_X, from, to),
-                PropertyValuesHolder.ofFloat(View.SCALE_Y, from, to),
-                PropertyValuesHolder.ofFloat(View.TRANSLATION_X, zoomIn ? 0f : dx, zoomIn ? dx : 0f),
-                PropertyValuesHolder.ofFloat(View.TRANSLATION_Y, zoomIn ? 0f : dy, zoomIn ? dy : 0f))
+        // A slow zoom in that ends at exactly the whole picture, so nothing is ever cut off.
+        ObjectAnimator zoom = ObjectAnimator.ofPropertyValuesHolder(incoming,
+                android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, ZOOM_FROM, 1f),
+                android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, ZOOM_FROM, 1f))
                 .setDuration(interval + 2 * FADE_MS);
-        drift.setInterpolator(new LinearInterpolator());
+        zoom.setInterpolator(new android.view.animation.LinearInterpolator());
         AnimatorSet set = new AnimatorSet();
-        set.playTogether(fade, drift);
+        set.playTogether(fade, zoom);
         incoming.setTag(R.id.animation, set);
         set.start();
         boolean afterClip = player != null;

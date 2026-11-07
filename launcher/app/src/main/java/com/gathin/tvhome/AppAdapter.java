@@ -165,7 +165,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // Shrink at most to MIN_HEIGHT_FIT of the width-only size. Below that the tiles look lost in their wide
         // columns (2 rows under a titled dock came out at 80dp); the rows that still don't fit run off the bottom
         // and scroll, and MainActivity keeps the title's room above the dock.
-        return Math.max(Math.max(Math.round(80 * density), Math.round(w * MIN_HEIGHT_FIT)), Math.min(w, byHeight));
+        // fit_all_tiles asks for every row on screen, so it gives up the MIN_HEIGHT_FIT floor.
+        float floor = Config.fitAllTiles ? 0f : MIN_HEIGHT_FIT;
+        return Math.max(Math.max(Math.round(80 * density), Math.round(w * floor)), Math.min(w, byHeight));
     }
 
     /** The smallest share of the width-only tile size that fitting rows_below_dock into the height may go to. */
@@ -478,7 +480,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // The dock has no labels, unless always_show_names asks for them (DockDecoration then makes room in the band).
         // In a single row every tile is the dock's kind: the big title above names it.
         boolean dockKind = DockSlots.inDockRow(dockRow, singleRow, position, dockSize);
-        h.name.setVisibility(dockKind && restNameAlpha == 0f ? View.INVISIBLE : View.VISIBLE);
+        h.name.setVisibility(dockKind && restNameAlpha == 0f && !Config.dockNames ? View.INVISIBLE : View.VISIBLE);
         h.inDock = dockKind;
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
         h.name.setAlpha(focused ? 1f : restNameAlpha);
@@ -569,6 +571,13 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     int appCount() { return items.size(); }
 
+    /** The tiles on Home, without the empty dock slots that only hold a place. */
+    int tileCount() {
+        int count = 0;
+        for (Entry e : items) if (e.kind != Entry.EMPTY) count++;
+        return count;
+    }
+
     boolean isLibraryAt(int position) { return showLibrary && position == items.size(); }
 
     @Override public int getItemViewType(int position) { return isLibraryAt(position) ? 1 : 0; }
@@ -634,6 +643,16 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             int lo = Math.min(from, to), hi = Math.max(from, to);
             notifyItemRangeChanged(lo, hi - lo + 1);
         }
+    }
+
+    /** swap_tiles: see CarrySwap. Redraws every place a tile left or arrived at. */
+    void swapStep(int origin, int from, int to) {
+        int n = movableCount();
+        if (origin < 0 || from < 0 || to < 0 || origin >= n || from >= n || to >= n) return;
+        CarrySwap.step(items, origin, from, to);
+        notifyItemChanged(origin);
+        notifyItemChanged(from);
+        notifyItemChanged(to);
     }
 
     /** Stable key for the app at a position (its component), or null. */

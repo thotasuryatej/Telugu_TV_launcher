@@ -73,6 +73,109 @@ public final class PetalShowerView extends View {
         vein.setColor(EDGE);
     }
 
+    private int[] palette = COLORS;
+    private boolean rises;
+
+    /** A FestivalCalendar effect: the shapes and colours that go with that festival. */
+    void setEffect(int effect) {
+        Path shape = null;
+        switch (effect) {
+            case FestivalCalendar.SPARKS:
+                palette = new int[] {0xFFFFD36B, 0xFFFFB23C, 0xFFFFF1B8, 0xFFFF8C1A};
+                shape = circle();
+                rises = true;
+                break;
+            case FestivalCalendar.LEAVES:
+                palette = new int[] {0xFF4CAF50, 0xFF7BC96F, 0xFF2E8B57, 0xFF9CCC65};
+                shape = leaf();
+                break;
+            case FestivalCalendar.KITES:
+                palette = new int[] {0xFFE53935, 0xFF1E88E5, 0xFFFDD835, 0xFF43A047, 0xFF8E24AA};
+                shape = kite();
+                break;
+            case FestivalCalendar.FLOWERS:
+                palette = new int[] {0xFFF06DB0, 0xFFFFD54F, 0xFFBA68C8, 0xFFFF8A65, 0xFF81C784};
+                break;
+            case FestivalCalendar.BALLOONS:
+                palette = new int[] {0xFFE53935, 0xFFFFB300, 0xFF1E88E5, 0xFF43A047, 0xFFD81B60, 0xFF8E24AA};
+                shape = balloon();
+                rises = true;
+                break;
+            case FestivalCalendar.HEARTS:
+                palette = new int[] {0xFFFF4D6D, 0xFFFF758F, 0xFFC9184A, 0xFFFFB3C1};
+                shape = heart();
+                rises = true;
+                break;
+            case FestivalCalendar.CONFETTI:
+                palette = new int[] {0xFFFFD36B, 0xFF4FC3F7, 0xFFFF5F8F, 0xFF81C784, 0xFFBA68C8, 0xFFFFFFFF};
+                shape = confetti();
+                break;
+            case FestivalCalendar.COLOURS:
+                palette = new int[] {0xFFFF4081, 0xFF00E5FF, 0xFFFFEA00, 0xFF76FF03, 0xFFE040FB, 0xFFFF9100};
+                shape = circle();
+                break;
+            default:
+                break;
+        }
+        if (shape != null) {
+            Path none = new Path();
+            for (int i = 0; i < shapes.length; i++) {
+                shapes[i] = shape;
+                veins[i] = none;
+            }
+        }
+    }
+
+    private static Path balloon() {
+        Path p = new Path();
+        p.addOval(new android.graphics.RectF(-0.42f, -0.65f, 0.42f, 0.35f), Path.Direction.CW);
+        p.moveTo(-0.07f, 0.34f);
+        p.lineTo(0.07f, 0.34f);
+        p.lineTo(0f, 0.46f);
+        p.close();
+        return p;
+    }
+
+    private static Path heart() {
+        Path p = new Path();
+        p.moveTo(0f, 0.55f);
+        p.cubicTo(-0.75f, 0f, -0.45f, -0.6f, 0f, -0.22f);
+        p.cubicTo(0.45f, -0.6f, 0.75f, 0f, 0f, 0.55f);
+        p.close();
+        return p;
+    }
+
+    private static Path confetti() {
+        Path p = new Path();
+        p.addRect(-0.3f, -0.5f, 0.3f, 0.5f, Path.Direction.CW);
+        return p;
+    }
+
+    private static Path circle() {
+        Path p = new Path();
+        p.addCircle(0f, 0f, 0.42f, Path.Direction.CW);
+        return p;
+    }
+
+    private static Path leaf() {
+        Path p = new Path();
+        p.moveTo(0f, 0.6f);
+        p.cubicTo(-0.34f, 0.2f, -0.3f, -0.3f, 0f, -0.6f);
+        p.cubicTo(0.3f, -0.3f, 0.34f, 0.2f, 0f, 0.6f);
+        p.close();
+        return p;
+    }
+
+    private static Path kite() {
+        Path p = new Path();
+        p.moveTo(0f, -0.65f);
+        p.lineTo(0.48f, -0.05f);
+        p.lineTo(0f, 0.65f);
+        p.lineTo(-0.48f, -0.05f);
+        p.close();
+        return p;
+    }
+
     /**
      * Plays a shower of {@code petals} petals lasting {@code durationMs}, then runs {@code done} on the main
      * thread. Playing again before the last shower ends finishes that one first (its callback runs).
@@ -100,7 +203,7 @@ public final class PetalShowerView extends View {
             spin[i] = (40f + rnd.nextFloat() * 120f) * (rnd.nextBoolean() ? 1f : -1f); // degrees per second
             flipFreq[i] = 0.4f + rnd.nextFloat();           // Hz
             flipPhase[i] = rnd.nextFloat() * (float) TAU;
-            color[i] = rnd.nextInt(COLORS.length);
+            color[i] = rnd.nextInt(palette.length);
             shape[i] = rnd.nextInt(shapes.length);
         }
         playing = true;
@@ -140,6 +243,7 @@ public final class PetalShowerView extends View {
             float len = size[i] * density;
             float fall = (p + p * p) * 0.5f;               // gathers speed, like a petal against the air
             float y = -len * 1.5f + (h * drop[i] + len * 1.5f) * fall;
+            if (rises) y = h - y;                          // sparks go up, like lamp light and sparklers
             double sway = TAU * swayFreq[i] * secs + swayPhase[i];
             float x = xFrac[i] * w + swayAmp[i] * density * (float) Math.sin(sway);
             float angle = rot0[i] + spin[i] * secs + 22f * (float) Math.cos(sway); // tilts into the sway
@@ -149,7 +253,7 @@ public final class PetalShowerView extends View {
 
             // turned edge-on it looks darker; the back is darker still
             float shade = (flip < 0f ? 0.78f : 1f) * (0.8f + 0.2f * Math.abs(flip));
-            int base = COLORS[color[i]];
+            int base = palette[color[i]];
             fill.setColor(scale(base, shade));
             fill.setAlpha(a);
             edge.setColor(scale(base, 0.55f));

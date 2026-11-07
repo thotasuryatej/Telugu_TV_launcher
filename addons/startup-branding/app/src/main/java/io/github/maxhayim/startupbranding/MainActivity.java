@@ -43,6 +43,12 @@ public class MainActivity extends Activity {
         page.add("Welcome Text", "A line of your own, up to " + Look.MAX_TEXT + " characters.",
                 () -> page.ask("Welcome text", l.text, Look.MAX_TEXT, s -> change(x -> x.text = Look.clean(s, Look.MAX_TEXT))))
                 .setValue(l.text.isEmpty() ? "None" : l.text);
+        page.add("Text Font", "Press OK to try the next font; the preview shows it.",
+                () -> change(x -> x.font = (x.font + 1) % Look.FONT_FAMILIES.length))
+                .setValue(Look.FONT_NAMES[l.font]);
+        page.add("Text Animation", "Press OK for the next one, then Preview to watch it.",
+                () -> change(x -> x.animation = Look.next(Look.Animation.values(), x.animation)))
+                .setValue(cap(l.animation.name().replace('_', ' ')));
         page.add("Text Position", "Where the text sits on the screen.",
                 () -> change(x -> x.place = Look.next(Look.Place.values(), x.place)))
                 .setValue(cap(l.place.name()));

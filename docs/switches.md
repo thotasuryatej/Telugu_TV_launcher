@@ -28,6 +28,17 @@ rule sit on its wanted list until a screenshot arrives.
 |---|---|
 | `columns` | <img src="../themes/six-columns/screenshot.jpg" width="320" alt="columns on a TV"> |
 | `glass_style` | <img src="switches/glass_style.jpg" width="320" alt="glass_style halo on a TV"> |
+| `settings_pill_panel` | <img src="switches/settings_pill_panel.jpg" width="320" alt="settings_pill_panel: the quick settings panel under the Settings button"> |
+| `telugu_calendar` | <img src="switches/telugu_calendar.jpg" width="320" alt="telugu_calendar: the Telugu date, masam, tithi and nakshatram beside the clock"> |
+| `calendar_latitude` | <img src="switches/telugu_calendar.jpg" width="320" alt="calendar_latitude sets where sunrise is worked out for the Telugu calendar"> |
+| `calendar_longitude` | <img src="switches/telugu_calendar.jpg" width="320" alt="calendar_longitude sets where sunrise is worked out for the Telugu calendar"> |
+| `festival_auto` | <img src="switches/festival_auto.jpg" width="320" alt="festival_auto: Deepavali sparks rising behind the apps"> |
+| `festival_corrections` | <img src="switches/festival_auto.jpg" width="320" alt="festival_corrections moves or removes a festival day"> |
+| `festival_preview_date` | <img src="switches/family_days.jpg" width="320" alt="festival_preview_date showing a birthday ahead of time"> |
+| `family_days` | <img src="switches/family_days.jpg" width="320" alt="family_days: a birthday greeting with balloons, the name blurred"> |
+| `swap_tiles` | <img src="switches/swap_tiles.jpg" width="320" alt="swap_tiles: Netflix and YouTube trade places, Prime Video stays"> |
+| `fit_all_tiles` | <img src="switches/fit_all_tiles.jpg" width="320" alt="fit_all_tiles: every app on one screen"> |
+| `dock_names` | <img src="switches/dock_names.jpg" width="320" alt="dock_names: the selected top-row app shows its name under it"> |
 | `sky_intensity` | <img src="sky-sunset.jpg" width="320" alt="sky_intensity on a TV"> |
 | `wallpaper_rotation_minutes` | <img src="../themes/scenes/screenshot.jpg" width="320" alt="wallpaper_rotation_minutes on a TV"> |
 | `festival` | <img src="../themes/dussehra/screenshot.jpg" width="320" alt="festival on a TV"> |

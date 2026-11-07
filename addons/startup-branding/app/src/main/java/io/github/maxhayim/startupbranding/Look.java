@@ -30,14 +30,28 @@ final class Look {
     static final String[] COLOR_NAMES = {"Black", "Charcoal", "Midnight", "Forest", "Wine", "White"};
     static final int[] COLORS = {0xFF000000, 0xFF1C1C1E, 0xFF0B1A33, 0xFF0E2A1F, 0xFF2A0E16, 0xFFFFFFFF};
 
+    /** The TV's own fonts, so nothing is bundled: what the welcome text can be set in. */
+    static final String[] FONT_NAMES = {"Light", "Elegant Script", "Handwritten", "Classic Serif", "Typewriter",
+            "Small Caps", "Condensed", "Thin", "Heavy", "Monospace"};
+    static final String[] FONT_FAMILIES = {"sans-serif-light", "cursive", "casual", "serif", "serif-monospace",
+            "sans-serif-smallcaps", "sans-serif-condensed", "sans-serif-thin", "sans-serif-black", "monospace"};
+
+    /** How the welcome text comes in; WelcomeView draws them. */
+    enum Animation {
+        NONE, FADE_IN, SLIDE_UP, ZOOM_IN, TYPEWRITER, LETTER_BY_LETTER, GLOW_PULSE,
+        DECODE, NEON_FLICKER, GOLD_SHIMMER, WAVE, BOUNCE_DROP, ASSEMBLE, CURTAIN_REVEAL
+    }
+
+    int font = 0;
+    Animation animation = Animation.FADE_IN;
     Mode mode = Mode.CUSTOM;
     /** A file name in the app's pictures folder, or "" for none. */
     String image = "";
     Scale scale = Scale.FIT;
     Align align = Align.CENTER;
     String text = "Welcome";
-    Place place = Place.BOTTOM;
-    int color = 0;
+    Place place = Place.CENTER;
+    int color = 2;
     int seconds = 5;
     String nickname = "";
 
@@ -51,6 +65,8 @@ final class Look {
         if (t != null) l.text = clean(t, MAX_TEXT);
         l.place = pick(Place.values(), s.get("place"), l.place);
         l.color = index(s.get("color"), COLORS.length, l.color);
+        l.font = index(s.get("font"), FONT_FAMILIES.length, l.font);
+        l.animation = pick(Animation.values(), s.get("animation"), l.animation);
         int sec = number(s.get("seconds"), l.seconds);
         for (int d : DURATIONS) if (d == sec) l.seconds = sec;
         String n = s.get("nickname");
@@ -66,6 +82,8 @@ final class Look {
         s.put("text", text);
         s.put("place", place.name());
         s.put("color", Integer.toString(color));
+        s.put("font", Integer.toString(font));
+        s.put("animation", animation.name());
         s.put("seconds", Integer.toString(seconds));
         s.put("nickname", nickname);
     }
